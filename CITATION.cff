@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Alert review capacity and the CTU-13 replay"
+type: software
+authors:
+  - family-names: "Al Bataineh"
+    given-names: "Ali"
+    affiliation: "Higher Colleges of Technology"
+    orcid: "https://orcid.org/0000-0001-9530-7950"
+version: "1.0.0"
+date-released: "2026-11-01"
+license: MIT
+repository-code: "https://github.com/aalbata/alert-review-capacity"
+abstract: "Code, configuration, and result files for a worked example of alert workload and an offline replay of the CTU-13 botnet dataset through a review queue with fixed capacity."
+references:
+  - type: article
+    title: "An empirical comparison of botnet detection methods"
+    authors:
+      - family-names: "Garcia"
+        given-names: "Sebastian"
+      - family-names: "Grill"
+        given-names: "Martin"
+      - family-names: "Stiborek"
+        given-names: "Jan"
+      - family-names: "Zunino"
+        given-names: "Alejandro"
+    journal: "Computers & Security"
+    volume: 45
+    start: 100
+    end: 123
+    year: 2014
+    doi: "10.1016/j.cose.2014.05.011"

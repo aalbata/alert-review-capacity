@@ -1,0 +1,161 @@
+{
+  "window_minutes": 5,
+  "export_delays_s": [
+    0,
+    60,
+    300
+  ],
+  "main_export_delay_s": 0,
+  "deadline_minutes": 60,
+  "internal_prefix": "147.32.",
+  "train_scenarios": [
+    42,
+    43,
+    44,
+    45,
+    46,
+    54
+  ],
+  "test_scenarios": [
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53
+  ],
+  "detection_targets": {
+    "A": 0.9,
+    "B": 0.95
+  },
+  "illustrative_capacity_per_hour": 60,
+  "illustrative_capacity_basis": "three analysts, each reviewing one alert every three minutes, the review time of the worked example; not derived from test results",
+  "comparison_false_alert_rate": 0.01,
+  "capacity_grid_per_hour": [
+    10,
+    15,
+    20,
+    25,
+    30,
+    40,
+    50,
+    60,
+    80,
+    100,
+    120,
+    160,
+    200,
+    300,
+    400
+  ],
+  "alert_budgets_per_hour": [
+    10,
+    30,
+    100,
+    300
+  ],
+  "model_seed": 0,
+  "model_seed_range": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "tie_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "family_from_capture_readme": {
+    "42": "Neris",
+    "43": "Neris",
+    "44": "Rbot",
+    "45": "Rbot",
+    "46": "Virut",
+    "47": "DonBot",
+    "48": "Sogou",
+    "49": "Murlo",
+    "50": "Neris",
+    "51": "Rbot",
+    "52": "Rbot",
+    "53": "NSIS.ay",
+    "54": "Virut"
+  },
+  "infection_times_note": "Documented infection times from each capture's README on mcfp.felk.cvut.cz, in Central European Summer Time, the clock of the flow records. Keys are infected lab addresses listed in the same README. Scenario 52 documents one interval for three hosts; its start is used. Scenario 48's README gives the bot start (13:56:07) after text repeated from scenario 42. Scenarios 42 and 46 document no infection time; their onset is the host's first From-Botnet record, which may include the lab machine's start-up traffic.",
+  "infection_times_cest": {
+    "43": {
+      "147.32.84.165": "2011-08-11 10:33:04"
+    },
+    "44": {
+      "147.32.84.165": "2011-08-12 15:00:37"
+    },
+    "45": {
+      "147.32.84.165": "2011-08-15 12:21:33"
+    },
+    "47": {
+      "147.32.84.165": "2011-08-16 10:08:47"
+    },
+    "48": {
+      "147.32.84.165": "2011-08-16 13:56:07"
+    },
+    "49": {
+      "147.32.84.165": "2011-08-16 14:24:01"
+    },
+    "50": {
+      "147.32.84.165": "2011-08-17 14:24:08",
+      "147.32.84.191": "2011-08-17 14:43:20",
+      "147.32.84.192": "2011-08-17 14:48:20",
+      "147.32.84.193": "2011-08-17 14:54:45",
+      "147.32.84.204": "2011-08-17 14:56:07",
+      "147.32.84.205": "2011-08-17 14:57:58",
+      "147.32.84.206": "2011-08-17 15:00:42",
+      "147.32.84.207": "2011-08-17 15:01:56",
+      "147.32.84.208": "2011-08-17 15:03:13",
+      "147.32.84.209": "2011-08-17 15:04:54"
+    },
+    "51": {
+      "147.32.84.209": "2011-08-18 11:03:05",
+      "147.32.84.208": "2011-08-18 11:03:52",
+      "147.32.84.207": "2011-08-18 11:04:20",
+      "147.32.84.206": "2011-08-18 11:04:46",
+      "147.32.84.204": "2011-08-18 11:05:13",
+      "147.32.84.192": "2011-08-18 11:05:41",
+      "147.32.84.165": "2011-08-18 11:06:10",
+      "147.32.84.191": "2011-08-18 11:06:32",
+      "147.32.84.193": "2011-08-18 11:06:52",
+      "147.32.84.205": "2011-08-18 11:07:15"
+    },
+    "52": {
+      "147.32.84.165": "2011-08-18 15:48:28",
+      "147.32.84.191": "2011-08-18 15:48:28",
+      "147.32.84.192": "2011-08-18 15:48:28"
+    },
+    "53": {
+      "147.32.84.165": "2011-08-19 10:42:39",
+      "147.32.84.191": "2011-08-19 10:47:18",
+      "147.32.84.192": "2011-08-19 10:50:25"
+    },
+    "54": {
+      "147.32.84.165": "2011-08-15 17:18:01"
+    }
+  }
+}

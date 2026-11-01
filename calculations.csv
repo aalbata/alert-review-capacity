@@ -1,0 +1,47 @@
+quantity,value,unit,note
+messages_per_day,1000000.0,messages/day,input
+threats_per_day,1000.0,messages/day,input
+legitimate_per_day,999000.0,messages/day,derived
+analyst_hours_per_day,60.0,hours/day,input
+minutes_per_alert,3.0,minutes,input
+capacity_alerts_per_day,1200.0,alerts/day,analyst hours x 60 / minutes per alert
+A_detection_rate,0.9,fraction,input
+A_false_positive_rate,0.0001,fraction,input
+A_true_alerts,900.0,alerts/day,threats x detection rate
+A_false_alerts,99.9,alerts/day,legitimate x false-positive rate
+A_total_alerts,999.9,alerts/day,true + false
+A_precision,0.9000900090009001,fraction,true / total alerts
+A_review_hours,49.995,analyst-hours/day,total x minutes / 60
+A_utilization,0.8332499999999999,fraction,total alerts / capacity
+A_daily_excess,0.0,alerts/day,"total - capacity, if positive"
+A_threats_examined_unprioritized,900.0,threats/day,per day at full capacity; reviewed alerts carry the arrival threat share
+A_threats_examined_prioritized,900.0,threats/day,"upper bound, all true alerts reviewed first"
+A_backlog_day_7,0.0,alerts,"end of day, empty queue at day 0"
+B_detection_rate,0.95,fraction,input
+B_false_positive_rate,0.001,fraction,input
+B_true_alerts,950.0,alerts/day,threats x detection rate
+B_false_alerts,999.0,alerts/day,legitimate x false-positive rate
+B_total_alerts,1949.0,alerts/day,true + false
+B_precision,0.4874294510005131,fraction,true / total alerts
+B_review_hours,97.45,analyst-hours/day,total x minutes / 60
+B_utilization,1.6241666666666668,fraction,total alerts / capacity
+B_daily_excess,749.0,alerts/day,"total - capacity, if positive"
+B_threats_examined_unprioritized,584.9153412006157,threats/day,per day at full capacity; reviewed alerts carry the arrival threat share
+B_threats_examined_prioritized,950.0,threats/day,"upper bound, all true alerts reviewed first"
+B_backlog_day_7,5243.0,alerts,"end of day, empty queue at day 0"
+extra_true_alerts_B_vs_A,50.0,alerts/day,B - A
+extra_false_alerts_B_vs_A,899.1,alerts/day,B - A
+extra_false_per_extra_threat,17.982,alerts,ratio
+extra_review_minutes_per_extra_threat,56.946,minutes,all extra alerts x minutes / extra threats
+total_alert_ratio_B_over_A,1.9491949194919493,ratio,B / A
+fpr_difference_percentage_points,0.09,percentage points,B - A
+B_threats_unexamined_unprioritized,365.08465879938433,threats/day,detected by B but not reviewed that day; never reviewed if the surplus is dropped
+B_shortfall_vs_A_unprioritized,315.08465879938433,threats/day,A examined - B examined
+B_minutes_to_fit_capacity,1.8471010774756285,minutes,mean review time at which B load equals capacity
+B_minutes_to_match_A_unprioritized,1.9497178040020524,minutes,mean review time below which B examines more threats than A
+A_minutes_to_fit_capacity,3.6003600360036003,minutes,mean review time at which A load equals capacity
+B_extra_analyst_hours_needed,37.45,analyst-hours/day,B review hours - available hours
+B_wait_days_after_day_7,4.369166666666667,days,first-in first-out wait of an alert arriving at the end of the day behind the backlog
+B_backlog_growth_per_day,749.0,alerts/day,arrivals - capacity
+B_wait_growth_days_per_day,0.6241666666666666,days/day,first-in first-out wait added per day of operation
+B_days_until_wait_exceeds_one_day,1.6021361815754338,days,"after this time every new alert waits more than a day under first in, first out"
