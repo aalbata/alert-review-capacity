@@ -7,11 +7,11 @@ authors:
     given-names: "Ali"
     affiliation: "Higher Colleges of Technology"
     orcid: "https://orcid.org/0000-0001-9530-7950"
-version: "1.0.0"
-date-released: "2026-11-01"
+version: "1.1.0"
+date-released: "2026-11-06"
 license: MIT
 repository-code: "https://github.com/aalbata/alert-review-capacity"
-abstract: "Code, configuration, and result files for a worked example of alert workload and an offline replay of the CTU-13 botnet dataset through a review queue with fixed capacity."
+abstract: "Code, configuration, and result files for a worked example of alert workload, an offline replay of the CTU-13 botnet dataset through a review queue with fixed capacity under four review policies, and a stand-alone tool that replays any alert log."
 references:
   - type: article
     title: "An empirical comparison of botnet detection methods"

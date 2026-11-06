@@ -4,7 +4,7 @@ Full path, from the raw CTU-13 files:
   1. review_capacity.py      worked example, calculations.csv, backlog.csv, Figure 1
   2. download_ctu13.py       download the 13 raw flow files into RAW_DIR and verify their checksums
   3. ctu13_experiment.py     build the host-window tables in data/ and write results/
-  4. ctu13_figures.py        Figures 2 and 3
+  4. ctu13_figures.py        Figures 2, 3, and 4
   5. checksums.py --check    compare every output with SHA256SUMS
 
 Fast path, without the dataset: steps 1 and 4 from the shipped result files, then a check of the

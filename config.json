@@ -25,10 +25,10 @@
     52,
     53
   ],
-  "detection_targets": {
-    "A": 0.9,
-    "B": 0.95
-  },
+  "detection_targets": [
+    0.9,
+    0.95
+  ],
   "illustrative_capacity_per_hour": 60,
   "illustrative_capacity_basis": "three analysts, each reviewing one alert every three minutes, the review time of the worked example; not derived from test results",
   "comparison_false_alert_rate": 0.01,
@@ -52,9 +52,17 @@
   "alert_budgets_per_hour": [
     10,
     30,
-    100,
+    60,
+    120,
     300
   ],
+  "review_policies": [
+    "fifo",
+    "score",
+    "fifo-host",
+    "score-host"
+  ],
+  "isolation_forest_trees": 200,
   "model_seed": 0,
   "model_seed_range": [
     0,
@@ -85,6 +93,7 @@
     18,
     19
   ],
+  "capacity_grid_tie_seeds": 5,
   "family_from_capture_readme": {
     "42": "Neris",
     "43": "Neris",

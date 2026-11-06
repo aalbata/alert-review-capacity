@@ -1,24 +1,27 @@
 # Alert review capacity and the CTU-13 replay
 
 This repository reproduces every number and figure in the article "When Detecting More Threats Means
-Handling Fewer" by Ali Al Bataineh. Repository: https://github.com/aalbata/alert-review-capacity
+Reviewing Fewer in Time" by Ali Al Bataineh. Repository: https://github.com/aalbata/alert-review-capacity
 
-It contains two analyses.
+It contains three parts.
 
 1. A worked example (`review_capacity.py`, Figure 1). Settings A and B are invented operating points of an
    email detector. They are not measurements of any product, trained model, or deployment.
-2. An offline replay of the public CTU-13 botnet dataset (`ctu13_experiment.py`, Figures 2 and 3).
-   Detectors are trained on the six earliest captures and tested on the seven later ones, and the alerts
-   are replayed through a review queue with fixed capacity. This is a reproducible experiment on recorded
-   traffic under stated timing assumptions, not a deployment in an operational security team.
+2. An offline replay of the public CTU-13 botnet dataset (`ctu13_experiment.py`, Figures 2 to 4 and
+   Table 1). Three detectors are trained on the six earliest captures and tested on the seven later ones,
+   and the alerts are replayed through a review queue with fixed capacity under four review policies.
+   This is a reproducible experiment on recorded traffic under stated timing assumptions, not a
+   deployment in an operational security team.
+3. A stand-alone replay tool (`alert_replay.py`) that reads any alert log with an alert time, an entity,
+   a score, and a ground-truth flag, and reports how many threats are reviewed within a deadline.
 
 ## Environment
 
 Developed and tested on Windows 11 (Intel Core Ultra 7 155U, CPU only) with Python 3.12.10.
 `requirements.txt` pins the direct dependencies; `requirements-lock.txt` pins the full set installed in a
 fresh virtual environment. Results for the gradient-boosted trees depend on the scikit-learn version:
-scikit-learn 1.9.0 changed how histogram gradient boosting computes bin edges (pull request 29641), and
-1.8.0 gives slightly different tree results. scikit-learn 1.9.0 and 1.9.1 give identical results.
+scikit-learn 1.9.0 changed how histogram gradient boosting computes bin edges (pull request 29641), so
+earlier versions give slightly different tree results.
 
 ## Reproduce
 
@@ -33,7 +36,8 @@ python reproduce.py --raw raw
 `reproduce.py` runs the worked example, downloads the 13 raw CTU-13 flow files (about 2.7 GB) into `raw/`
 and checks their SHA-256 sums, builds the derived host-window tables in `data/`, runs the experiment,
 draws the figures, and compares every output with `SHA256SUMS`. `python checksums.py --check` repeats
-the comparison. On the machine above, the steps after the download took about 5 minutes, and the download took about 6 minutes with 32 parallel connections.
+the comparison. The queue replays run in parallel processes
+(`ctu13_experiment.py --workers N`); the results do not depend on the number of processes.
 
 A quick check without the dataset regenerates the worked example and the figures from the shipped result
 files and compares them with `SHA256SUMS`:
@@ -41,6 +45,20 @@ files and compares them with `SHA256SUMS`:
 ```
 python reproduce.py --fast
 ```
+
+## Replaying your own alert log
+
+```
+python alert_replay.py alerts.csv threats.csv --capacity 30 60 120 --deadline 60 --seeds 20
+```
+
+`alerts.csv` has one row per alert with columns `queue` (an independent queue, for example a day or a
+site; each starts empty), `time_min` (alert time in minutes), `entity` (the host, account, or mailbox the
+alert concerns), `score` (higher is more suspicious), and `threat` (1 if the alert was raised on threat
+activity, else 0). `threats.csv` has one row per threat with `queue`, `entity`, and `onset_min`. The tool
+prints, for each capacity and review policy, the alerts, the reviews performed, the threats detected, and
+the threats whose first review of a threat alert ended within the deadline after onset (median, minimum,
+and maximum over random orders of simultaneous alerts).
 
 ## Data and terms
 
@@ -75,131 +93,168 @@ host's first From-Botnet record, which may include the lab machine's start-up tr
 records of the host count as ordinary traffic (228 records in
 all). `config.json` lists every documented onset used.
 
+Detectors. Logistic regression and histogram gradient-boosted trees are trained on the labels; an isolation
+forest with 200 trees is trained without labels and scores a window by how easily it is isolated.
+Trees and isolation forests are run with model seeds 0, 1, 2, 3, 4.
+
 Thresholds. Every threshold used for the test alerts and the queue replay is fixed on the training captures
-only, with scores from leave-one-capture-out models. A threshold is either the largest score that keeps at least 90% (setting A) or 95% (setting B) of held-out botnet
-windows, or the lowest score whose alert rate stays within a budget of
-10, 30, 100, 300 alerts per training hour.
-The final model is trained on all six training captures. The operating points and the random-versus-time
-split comparison choose thresholds on the evaluated data itself and are retrospective.
+only, with scores from leave-one-capture-out models. A detection target keeps at least
+90% or 95% of held-out botnet windows (supervised detectors only); an alert
+budget is the lowest score whose alert rate stays within 10, 30, 60, 120, 300
+alerts per training hour. The final model is trained on all six training captures. The operating points and
+the random-versus-time split comparison choose thresholds on the evaluated data itself and are
+retrospective.
 
 Queue. Each test capture is replayed separately from an empty queue, because the captures are separate
-recordings. One queue serves alerts one at a time at a fixed capacity and keeps working after the capture's
-last alert until it is empty. First in, first out serves the earliest alert time first; highest score
-first serves the highest detector score first. Alerts that remain tied are ordered by a random
-permutation that does not depend on labels; results are reported over 20 permutation seeds.
-The illustrative capacity of 60 reviews per hour assumes three analysts who each review one alert every
-three minutes, the review time of the worked example; it is not derived from test results. Figure 2b
-shows the full capacity range.
+recordings. One queue performs one review at a time at a fixed capacity and keeps working after the
+capture's last alert until it is empty. The four review policies are `fifo` (each alert on its own, earliest alert first), `score` (each alert on its own, highest score first), `fifo-host` (the waiting alerts of one host form one case, earliest case first), `score-host` (the waiting alerts of one host form one case, highest score in the case first).
+A case takes new alerts of its host until its review starts. Alerts that remain tied are ordered by a
+random permutation that does not depend on labels; results are reported over 20 permutation seeds at
+60 reviews per hour and over 5 seeds at the other capacities
+(10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 160, 200, 300, 400 per hour). The illustrative capacity of 60 reviews per hour
+assumes three analysts who each review one alert every three minutes, the review time of the worked
+example; it is not derived from test results.
 
-Outcomes. A botnet window is reviewed on time if its review is completed within
-60 minutes of its alert time; the denominator is every botnet-positive test window,
-detected or not. An infection is reviewed on time if a review of one of its botnet-positive alerts is
-completed within 60 minutes of the documented onset; reviews of benign alerts from the same host do
-not count. Detection delay runs from onset to the first botnet-positive alert, queue delay from that
-alert to its review.
+Outcomes. An infection is reviewed in time if a review that covers one of its botnet-positive alerts ends
+within 60 minutes of the documented onset; reviews of benign alerts from the same host do not count.
+Detection delay runs from onset to the first botnet-positive alert, queue delay from that alert to its
+review. A botnet window is reviewed in time if its review ends within 60 minutes of its alert time.
 
 ## Results
 
-Test captures: 55,410 host windows, 735 botnet-positive, 34.7 hours,
-29 infections on 10 distinct lab machines. Training captures:
+Test captures: 55,410 host windows from 2,512 hosts, 735 botnet-positive,
+34.7 hours, 29 infections on 10 distinct lab machines. Training captures:
 128,083 windows, 516 botnet-positive, 98.5 hours.
 
-Detection-target thresholds (main seed):
+Thresholds fixed on the training captures (model seed 0):
 
-| Detector | Training target | False-alert rate on held-out training captures | Test detection | Test alerts per hour | Peak alerts in one hour | Precision |
+| Detector | Threshold rule | Alerts per training hour | False-alert rate, training | Test detection | Test alerts per hour | Peak alerts in one hour | Precision |
+|---|---|---|---|---|---|---|---|
+| Logistic regression | 90% target | 6.2 | 0.11% | 47.6% | 12.9 | 123 | 78.0% |
+| Logistic regression | 95% target | 827.7 | 63.51% | 62.4% | 751.7 | 1,063 | 1.8% |
+| Logistic regression | 10 per hour | 10.0 | 0.40% | 48.0% | 25.1 | 145 | 40.5% |
+| Logistic regression | 30 per hour | 30.0 | 1.94% | 48.3% | 57.8 | 199 | 17.7% |
+| Logistic regression | 60 per hour | 60.0 | 4.26% | 48.4% | 88.1 | 244 | 11.6% |
+| Logistic regression | 120 per hour | 120.0 | 8.89% | 49.3% | 138.3 | 305 | 7.5% |
+| Logistic regression | 300 per hour | 300.0 | 22.78% | 52.0% | 376.8 | 604 | 2.9% |
+| Gradient-boosted trees | 90% target | 1,187.6 | 91.30% | 59.3% | 56.8 | 167 | 22.1% |
+| Gradient-boosted trees | 95% target | 1,207.3 | 92.82% | 59.5% | 58.5 | 167 | 21.5% |
+| Gradient-boosted trees | 10 per hour | 9.9 | 0.61% | 55.0% | 14.5 | 121 | 80.3% |
+| Gradient-boosted trees | 30 per hour | 16.5 | 1.12% | 55.4% | 14.7 | 121 | 80.0% |
+| Gradient-boosted trees | 60 per hour | 59.7 | 4.45% | 55.4% | 14.7 | 121 | 79.8% |
+| Gradient-boosted trees | 120 per hour | 117.1 | 8.88% | 55.4% | 14.7 | 121 | 79.8% |
+| Gradient-boosted trees | 300 per hour | 262.4 | 19.93% | 58.2% | 30.6 | 140 | 40.3% |
+| Isolation forest | 10 per hour | 10.0 | 0.66% | 35.0% | 32.0 | 162 | 23.1% |
+| Isolation forest | 30 per hour | 30.0 | 1.94% | 51.3% | 74.6 | 230 | 14.5% |
+| Isolation forest | 60 per hour | 60.0 | 4.26% | 54.1% | 139.4 | 327 | 8.2% |
+| Isolation forest | 120 per hour | 120.0 | 8.88% | 56.9% | 255.6 | 463 | 4.7% |
+| Isolation forest | 300 per hour | 300.0 | 22.78% | 70.3% | 557.0 | 901 | 2.7% |
+
+Infections reviewed within 60 minutes of onset at 60 reviews per hour, median over 20 tie seeds
+(range in parentheses), out of 29:
+
+| Detector | Threshold rule | Infections alerted | `fifo` | `score` | `fifo-host` | `score-host` |
 |---|---|---|---|---|---|---|
-| Gradient-boosted trees | 90% | 91.3% | 59.3% | 56.8 | 167 | 22.1% |
-| Gradient-boosted trees | 95% | 92.8% | 59.5% | 58.5 | 167 | 21.5% |
-| Logistic regression | 90% | 0.1% | 47.6% | 12.9 | 123 | 78.0% |
-| Logistic regression | 95% | 63.5% | 62.4% | 751.7 | 1,063 | 1.8% |
+| Logistic regression | 90% target | 19 | 13 (13) | 11 (11) | 13 (13) | 12 (12) |
+| Logistic regression | 95% target | 29 | 0 (0) | 11 (11) | 8 (6 to 11) | 12 (12) |
+| Logistic regression | 10 per hour | 19 | 13 (13) | 11 (11) | 13 (13) | 12 (12) |
+| Logistic regression | 30 per hour | 19 | 7 (6 to 9) | 11 (11) | 13 (13) | 12 (12) |
+| Logistic regression | 60 per hour | 19 | 3 (3) | 11 (11) | 13 (13) | 12 (12) |
+| Logistic regression | 120 per hour | 22 | 2 (2) | 11 (11) | 13 (13) | 12 (12) |
+| Logistic regression | 300 per hour | 27 | 0 (0 to 1) | 11 (11) | 3.5 (2 to 5) | 12 (12) |
+| Gradient-boosted trees | 90% target | 28 | 27 (26 to 28) | 28 (28) | 28 (28) | 28 (28) |
+| Gradient-boosted trees | 95% target | 28 | 22 (20 to 25) | 28 (28) | 28 (28) | 28 (28) |
+| Gradient-boosted trees | 10 per hour | 26 | 24 (24) | 24 (24) | 24 (24) | 24 (24) |
+| Gradient-boosted trees | 30 per hour | 26 | 25 (25) | 25 (25) | 25 (25) | 25 (25) |
+| Gradient-boosted trees | 60 per hour | 26 | 25 (25) | 25 (25) | 25 (25) | 25 (25) |
+| Gradient-boosted trees | 120 per hour | 26 | 25 (25) | 25 (25) | 25 (25) | 25 (25) |
+| Gradient-boosted trees | 300 per hour | 28 | 28 (28) | 28 (28) | 28 (28) | 28 (28) |
+| Isolation forest | 10 per hour | 24 | 14 (14) | 12 (12) | 14 (14) | 12 (12) |
+| Isolation forest | 30 per hour | 27 | 7 (7) | 15 (15) | 17 (17) | 15 (15) |
+| Isolation forest | 60 per hour | 27 | 6 (6) | 15 (15) | 17 (17) | 15 (15) |
+| Isolation forest | 120 per hour | 28 | 2.5 (2 to 4) | 15 (15) | 7 (7 to 8) | 16 (16) |
+| Isolation forest | 300 per hour | 29 | 0 (0 to 1) | 15 (15) | 9 (9 to 11) | 16 (16) |
 
-The same thresholds across gradient-boosting seeds 0, 1, 2, 3, 4:
+The same thresholds across model seeds:
 
-| Detector | Target | Seeds | Test detection | Test alerts per hour |
-|---|---|---|---|---|
-| Gradient-boosted trees | 90% | 5 | 59.3% to 100.0% | 56.8 to 1,594.9 |
-| Gradient-boosted trees | 95% | 5 | 59.5% to 100.0% | 58.5 to 1,595.4 |
-| Logistic regression | 90% | 1 | 47.6% | 12.9 |
-| Logistic regression | 95% | 1 | 62.4% | 751.7 |
-
-On-time review at 60 reviews per hour, median over 20 tie seeds (range in parentheses):
-
-| Detector | Target | Botnet windows on time, FIFO | Same, highest score first | Infections on time, FIFO | Same, highest score first |
+| Detector | Threshold rule | Seeds | Alerts per training hour | Test detection | Test alerts per hour |
 |---|---|---|---|---|---|
-| Gradient-boosted trees | 90% | 154 (153 to 156) | 315 (315) | 27 (26 to 28) | 28 (28) |
-| Gradient-boosted trees | 95% | 140 (137 to 143) | 315 (315) | 22 (20 to 25) | 28 (28) |
-| Logistic regression | 90% | 201 (201 to 203) | 225 (225) | 13 (13) | 11 (11) |
-| Logistic regression | 95% | 0 (0) | 228 (228) | 0 (0) | 11 (11) |
-
-Out of 735 botnet windows and 29 infections.
-
-Alert-budget thresholds:
-
-| Detector | Training budget (alerts per hour) | Seeds | Test detection | Test alerts per hour |
-|---|---|---|---|---|
-| Gradient-boosted trees | 10 | 5 | 55.0% to 57.3% | 13.1 to 20.4 |
-| Gradient-boosted trees | 30 | 5 | 55.4% to 59.0% | 14.7 to 39.0 |
-| Gradient-boosted trees | 100 | 5 | 55.4% to 65.2% | 14.7 to 51.3 |
-| Gradient-boosted trees | 300 | 5 | 56.1% to 69.1% | 15.8 to 107.6 |
-| Logistic regression | 10 | 1 | 48.0% | 25.1 |
-| Logistic regression | 30 | 1 | 48.3% | 57.8 |
-| Logistic regression | 100 | 1 | 49.1% | 120.1 |
-| Logistic regression | 300 | 1 | 52.0% | 376.8 |
+| Gradient-boosted trees | 90% target | 5 | 992.5 to 1,187.6 | 59.3% to 100.0% | 56.8 to 1,594.9 |
+| Gradient-boosted trees | 95% target | 5 | 992.5 to 1,235.2 | 59.5% to 100.0% | 58.5 to 1,595.4 |
+| Gradient-boosted trees | 10 per hour | 5 | 9.9 to 10.0 | 55.0% to 57.3% | 13.1 to 20.4 |
+| Gradient-boosted trees | 30 per hour | 5 | 16.5 to 30.0 | 55.4% to 59.0% | 14.7 to 39.0 |
+| Gradient-boosted trees | 60 per hour | 5 | 19.5 to 60.0 | 55.4% to 65.2% | 14.7 to 50.4 |
+| Gradient-boosted trees | 120 per hour | 5 | 82.6 to 119.8 | 55.4% to 65.2% | 14.7 to 60.7 |
+| Gradient-boosted trees | 300 per hour | 5 | 262.4 to 299.8 | 56.1% to 69.1% | 15.8 to 107.6 |
+| Isolation forest | 10 per hour | 5 | 10.0 | 23.3% to 35.6% | 31.7 to 35.1 |
+| Isolation forest | 30 per hour | 5 | 29.9 to 30.0 | 51.0% to 51.8% | 64.4 to 78.6 |
+| Isolation forest | 60 per hour | 5 | 57.1 to 60.0 | 53.9% to 54.8% | 119.5 to 139.4 |
+| Isolation forest | 120 per hour | 5 | 120.0 | 56.2% to 59.6% | 220.3 to 255.6 |
+| Isolation forest | 300 per hour | 5 | 300.0 | 68.2% to 89.4% | 535.0 to 575.5 |
 
 Random versus time-ordered split, detection at a 1% false-alert rate fixed on each evaluated set
 (retrospective), and average precision:
 
 | Detector | Seeds | Random split detection | Time-ordered detection | Random split AP | Time-ordered AP |
 |---|---|---|---|---|---|
-| Gradient-boosted trees | 5 | 86.7% to 95.7% | 56.7% to 59.2% | 0.75 to 0.94 | 0.59 to 0.61 |
 | Logistic regression | 1 | 65.9% | 48.0% | 0.62 | 0.47 |
+| Gradient-boosted trees | 5 | 86.7% to 95.7% | 56.7% to 59.2% | 0.75 to 0.94 | 0.59 to 0.61 |
+| Isolation forest | 5 | 23.7% to 35.9% | 3.3% to 23.4% | 0.13 to 0.19 | 0.10 to 0.13 |
 
-Export-delay sensitivity, logistic regression, 60 reviews per hour (medians over tie seeds):
+Export-delay sensitivity at 60 reviews per hour, model seed 0: infections reviewed in time (median over tie
+seeds) under `fifo` / `score` / `fifo-host` / `score-host`:
 
-| Export delay (s) | Target | Policy | Test detection | Alerts per hour | Botnet windows on time | Infections on time |
-|---|---|---|---|---|---|---|
-| 0 | 90% | fifo | 47.6% | 12.9 | 201 of 735 | 13 of 29 |
-| 0 | 90% | score | 47.6% | 12.9 | 225 of 735 | 11 of 29 |
-| 0 | 95% | fifo | 62.4% | 751.7 | 0 of 735 | 0 of 29 |
-| 0 | 95% | score | 62.4% | 751.7 | 228 of 735 | 11 of 29 |
-| 60 | 90% | fifo | 46.6% | 12.6 | 205 of 749 | 13 of 29 |
-| 60 | 90% | score | 46.6% | 12.6 | 226 of 749 | 13 of 29 |
-| 60 | 95% | fifo | 54.7% | 579.2 | 0 of 749 | 0 of 29 |
-| 60 | 95% | score | 54.7% | 579.2 | 231 of 749 | 13 of 29 |
-| 300 | 90% | fifo | 47.6% | 12.7 | 201 of 735 | 13 of 29 |
-| 300 | 90% | score | 47.6% | 12.7 | 225 of 735 | 11 of 29 |
-| 300 | 95% | fifo | 62.4% | 739.3 | 0 of 735 | 0 of 29 |
-| 300 | 95% | score | 62.4% | 739.3 | 228 of 735 | 11 of 29 |
+| Detector | Threshold rule | 0 s | 60 s | 300 s |
+|---|---|---|---|---|
+| Logistic regression | 90% target | 13 / 11 / 13 / 12 | 13 / 13 / 13 / 13 | 13 / 11 / 13 / 11 |
+| Logistic regression | 95% target | 0 / 11 / 8 / 12 | 0 / 13 / 10 / 13 | 0 / 11 / 8 / 11 |
+| Logistic regression | 10 per hour | 13 / 11 / 13 / 12 | 13 / 13 / 13 / 13 | 13 / 11 / 13 / 11 |
+| Logistic regression | 30 per hour | 7 / 11 / 13 / 12 | 11 / 13 / 13 / 13 | 6 / 11 / 13 / 11 |
+| Logistic regression | 60 per hour | 3 / 11 / 13 / 12 | 2 / 13 / 13 / 13 | 2 / 11 / 13 / 11 |
+| Logistic regression | 120 per hour | 2 / 11 / 13 / 12 | 3 / 13 / 14 / 13 | 2 / 11 / 13 / 11 |
+| Logistic regression | 300 per hour | 0 / 11 / 3.5 / 12 | 0 / 13 / 3 / 13 | 0 / 11 / 2 / 11 |
+| Gradient-boosted trees | 90% target | 27 / 28 / 28 / 28 | 0 / 28 / 1 / 28 | 26 / 28 / 28 / 28 |
+| Gradient-boosted trees | 95% target | 22 / 28 / 28 / 28 | 0 / 28 / 1 / 28 | 20 / 28 / 28 / 28 |
+| Gradient-boosted trees | 10 per hour | 24 / 24 / 24 / 24 | 26 / 26 / 26 / 26 | 24 / 24 / 24 / 24 |
+| Gradient-boosted trees | 30 per hour | 25 / 25 / 25 / 25 | 27 / 27 / 27 / 27 | 25 / 25 / 25 / 25 |
+| Gradient-boosted trees | 60 per hour | 25 / 25 / 25 / 25 | 27 / 27 / 27 / 27 | 25 / 25 / 25 / 25 |
+| Gradient-boosted trees | 120 per hour | 25 / 25 / 25 / 25 | 27 / 27 / 27 / 27 | 25 / 25 / 25 / 25 |
+| Gradient-boosted trees | 300 per hour | 28 / 28 / 28 / 28 | 0 / 28 / 1 / 28 | 28 / 28 / 28 / 28 |
+| Isolation forest | 10 per hour | 14 / 12 / 14 / 12 | 15 / 13 / 15 / 13 | 14 / 12 / 14 / 12 |
+| Isolation forest | 30 per hour | 7 / 15 / 17 / 15 | 7 / 15 / 17 / 15 | 7 / 15 / 17 / 15 |
+| Isolation forest | 60 per hour | 6 / 15 / 17 / 15 | 6 / 15 / 17 / 15 | 6 / 15 / 17 / 15 |
+| Isolation forest | 120 per hour | 2.5 / 15 / 7 / 16 | 2 / 15 / 6 / 15 | 2 / 15 / 7 / 15 |
+| Isolation forest | 300 per hour | 0 / 15 / 9 / 16 | 0 / 15 / 10 / 15 | 0 / 15 / 9 / 15 |
 
 ## Files
 
 `config.json` holds every setting, seed, onset, and family name. `tests/test_pipeline.py` holds regression
 tests on synthetic inputs, covering record timing and alert time, onsets and pre-onset records, the infection
-metric, tie order, the per-capture queue reset, and threshold ties.
+metric, tie order, the per-capture queue reset, host grouping, and threshold ties.
 
 Results (`results/`):
-- `ctu13_settings.csv`: one row per detector (`model`) and target (`setting`, A = 90%, B = 95%), main seed:
-  `threshold`; `test_detection` (share of botnet-positive test windows alerted); `test_alerts`,
-  `test_alerts_per_hour`, `test_peak_alerts_in_hour` (most alerts in one hour of a capture, binned by alert
-  time from the capture's start);
-  `test_precision`; `test_false_alert_rate` (share of other test windows alerted); `train_loco_detection`,
-  `train_loco_false_alert_rate` (the same on held-out training captures).
-- `ctu13_target_thresholds_by_seed.csv`: the same for every gradient-boosting seed.
-- `ctu13_budget_thresholds.csv`: thresholds from training alert budgets (`budget_per_hour`) and their
-  test metrics, per detector and seed; `train_loco_alerts_per_hour` is the attained training rate.
+- `ctu13_settings.csv`: one row per detector (`model`), `seed`, and threshold (`setting`: `T90`, `T95` for
+  detection targets, `B10` to `B300` for alert budgets; `rule`, `rule_value`): `threshold`;
+  `train_alerts_per_hour`, `train_detection`, `train_false_alert_rate` (on held-out training captures);
+  `test_detection` (share of botnet-positive test windows alerted); `test_alerts`, `test_alerts_per_hour`,
+  `test_peak_alerts_in_hour` (most alerts in one hour of a capture, binned by alert time from the capture's
+  start); `test_precision`; `test_false_alert_rate` (share of other test windows alerted).
+- `ctu13_queue_by_seed.csv`: queue outcomes per detector, seed, setting, `policy`, `capacity_per_hour`, and
+  `tie_seed`: `pos_windows`, `pos_windows_alerted`, `pos_windows_ontime`, `alerts`, `reviews` (cases
+  reviewed), `alerts_ontime`, `max_wait_min` (longest wait of any alert), `infections`,
+  `infections_detected`, `infections_ontime`.
+- `ctu13_queue.csv`: medians, minima, and maxima of those counts over tie seeds.
+- `ctu13_infection_timing.csv`: per infection at 60 reviews per hour, model seed 0: `detected`, `on_time`,
+  `detection_delay_min`, `queue_delay_min`, `time_to_review_min`, per policy and tie seed.
+- `ctu13_per_capture.csv`: per test capture and setting, model seed 0: `family` (probable name from the
+  capture README), `infections`, `positive_windows`, `detected`, `alerts`, `peak_alerts_in_hour`, `hours`.
+- `ctu13_hourly_alerts.csv`: alerts and botnet-positive alerts per test capture and hour, model seed 0.
 - `ctu13_split_comparison.csv`: detection at the fixed false-alert rate and average precision, random split
   versus time-ordered split, per detector and seed.
 - `ctu13_operating_points.csv`: every attainable threshold of the rule score >= threshold on the test
-  captures (`alerts`, `true_alerts`, `alerts_per_hour`, `detection`), ties included.
-- `ctu13_queue_by_seed.csv`: queue outcomes per detector, setting, policy (`fifo` or `score`),
-  `capacity_per_hour`, and `tie_seed`: `pos_windows`, `pos_windows_alerted`, `pos_windows_ontime`, `alerts`,
-  `alerts_ontime`, `infections`, `infections_detected`, `infections_ontime`, and their shares.
-- `ctu13_queue.csv`: medians, minima, and maxima of those counts over tie seeds.
-- `ctu13_infection_timing.csv`: per infection at 60 reviews per hour: `detected`, `on_time`,
-  `detection_delay_min`, `queue_delay_min`, `time_to_review_min`, per tie seed.
-- `ctu13_per_capture.csv`: per test capture: `family` (probable name from the capture README), `infections`,
-  `positive_windows`, `detected`, `alerts`, `peak_alerts_in_hour`, `hours`.
-- `ctu13_export_delay_sensitivity.csv`: main outcomes for export delays of 0, 60, 300 s.
+  captures (`alerts`, `true_alerts`, `alerts_per_hour`, `detection`), ties included, model seed 0.
+- `ctu13_export_delay_sensitivity.csv`: queue outcomes at 60 reviews per hour for export delays of
+  0, 60, 300 s, model seed 0.
 - `ctu13_summary.csv`: dataset sizes and settings.
 
 Worked example: `calculations.csv` (`quantity`, `value`, `unit`, `note`) and `backlog.csv` (`day`,
@@ -218,10 +273,9 @@ host and window (`scenario`, `host` as a per-capture identifier, `win`, the 18 f
 - The training scenarios 42 and 46 document no infection time, so a few start-up records of those lab
   machines may carry botnet labels in training. Scenario 42's shipped argus.conf names a unidirectional
   flow type, although its flow file is bidirectional.
-- For gradient-boosted trees, the 90% and 95% detection targets put the threshold near zero, because many
-  botnet windows in held-out training captures receive scores below 0.001; the resulting test alert volume
-  changes strongly with the random seed (table above).
-- Every alert is assumed to take the same review time, and capacity is constant through the day.
+- Every review is assumed to take the same time, whether it covers one alert or a host's grouped alerts,
+  and capacity is constant through the day. A review means that an analyst looked at an alert, not that
+  the threat was confirmed or contained.
 
 ## License
 

@@ -9,6 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import alert_replay as ar  # noqa: E402
 import ctu13_experiment as ce  # noqa: E402
 import review_capacity as rc  # noqa: E402
 
@@ -105,6 +106,19 @@ class InfectionMetric(unittest.TestCase):
         out = ce.infection_outcomes(a, self.infections)
         self.assertTrue(bool(out["on_time"].iloc[0]))
 
+    def test_array_and_table_versions_agree(self):
+        rng = np.random.default_rng(2)
+        n = 400
+        al = pd.DataFrame({"host": rng.choice(["h0", "h1", "h2", "h3"], n), "alert_min": np.sort(rng.random(n) * 900),
+                           "pos": rng.integers(0, 2, n), "completion_min": 0.0})
+        al["completion_min"] = al["alert_min"] + rng.random(n) * 120
+        inf = pd.DataFrame({"host": ["h0", "h2", "h9"], "onset_min": [0.0, 0.0, 0.0]})
+        table = ce.infection_outcomes(al, inf)
+        rows = ce.infection_rows(al["host"].to_numpy(), al["pos"].to_numpy(), al["alert_min"].to_numpy(),
+                                 al["completion_min"].to_numpy(), inf["host"].to_numpy(), inf["onset_min"].to_numpy())
+        arr = pd.DataFrame(rows, columns=table.columns)
+        pd.testing.assert_frame_equal(table, arr, check_dtype=False)
+
 
 class QueueReplay(unittest.TestCase):
     def test_service_times(self):
@@ -147,6 +161,52 @@ class QueueReplay(unittest.TestCase):
         # At 10 reviews an hour the tenth alert of a capture completes 60 minutes after minute 5.
         self.assertEqual(out["pos_windows_ontime"], 20)
         self.assertEqual(out["infections_ontime"], 2)
+
+
+class HostGrouping(unittest.TestCase):
+    def test_waiting_alerts_of_a_host_share_one_review(self):
+        arrival = np.array([0.0, 0.0, 0.5])
+        hosts = np.array(["h1", "h0", "h0"])
+        done = ar.replay(arrival, np.array([0.5, 0.4, 0.9]), 60, "fifo-host", np.arange(3), hosts)
+        self.assertEqual(list(done), [1.0, 2.0, 2.0])
+
+    def test_alert_after_review_start_opens_a_new_case(self):
+        done = ar.replay(np.array([0.0, 0.5]), np.zeros(2), 60, "fifo-host", np.arange(2), np.array(["h0", "h0"]))
+        self.assertEqual(list(done), [1.0, 2.0])
+
+    def test_case_priority_rises_with_its_highest_score(self):
+        arrival = np.array([0.0, 0.0, 0.0, 0.5])
+        hosts = np.array(["h0", "h1", "h2", "h0"])
+        done = ar.replay(arrival, np.array([0.2, 0.5, 0.3, 0.9]), 60, "score-host", np.arange(4), hosts)
+        self.assertEqual(list(done), [2.0, 1.0, 3.0, 2.0])
+
+    def test_distinct_hosts_match_the_per_alert_queue(self):
+        rng = np.random.default_rng(4)
+        arrival = np.sort(rng.integers(0, 30, 50)).astype(float)
+        score = rng.random(50)
+        hosts = np.array([f"h{i}" for i in range(50)])
+        ranks = ar.tie_ranks(50, 7)
+        for policy in ("fifo", "score"):
+            self.assertTrue(np.array_equal(ar.replay(arrival, score, 20, policy, ranks),
+                                           ar.replay(arrival, score, 20, f"{policy}-host", ranks, hosts)))
+
+    def test_grouping_never_adds_reviews(self):
+        rng = np.random.default_rng(5)
+        arrival = np.sort(rng.integers(0, 120, 300)).astype(float)
+        score = rng.random(300)
+        hosts = rng.integers(0, 12, 300)
+        done = ar.replay(arrival, score, 30, "score-host", ar.tie_ranks(300, 1), hosts)
+        self.assertLessEqual(np.unique(done).size, 300)
+        self.assertTrue((done >= arrival).all())
+
+    def test_replay_log_counts_threats_in_time(self):
+        alerts = pd.DataFrame({"queue": ["d1"] * 3, "time_min": [0.0, 0.0, 10.0], "entity": ["a", "b", "a"],
+                               "score": [0.1, 0.2, 0.9], "threat": [0, 0, 1]})
+        threats = pd.DataFrame({"queue": ["d1"], "entity": ["a"], "onset_min": [5.0]})
+        totals, per = ar.replay_log(alerts, threats, 60, "fifo", 0, deadline_min=60)
+        self.assertEqual(totals["reviews"], 3)
+        self.assertEqual(totals["threats_in_time"], 1)
+        self.assertAlmostEqual(float(per["time_to_review_min"].iloc[0]), 6.0)
 
 
 class Thresholds(unittest.TestCase):
